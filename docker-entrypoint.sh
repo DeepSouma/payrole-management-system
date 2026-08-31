@@ -16,7 +16,7 @@ echo "Database schema synchronized successfully!"
 
 # Run database seeding to ensure default data and admin credentials exist
 echo "Checking & seeding database..."
-npm run prisma:seed || echo "Seed completed or already initialized."
+npm run prisma:seed
 
 echo "Starting Next.js production server on http://0.0.0.0:3000..."
 exec npm run start -- -H 0.0.0.0 -p 3000

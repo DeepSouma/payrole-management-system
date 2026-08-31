@@ -26,7 +26,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/payroll_db"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/payroll_db}
       JWT_SECRET: ${JWT_SECRET:-payroll_super_secret_jwt_key_2026}
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-PayrollPro Cloud}
       NODE_ENV: production

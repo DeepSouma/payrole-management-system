@@ -394,6 +394,10 @@ html:not(.dark) .shadow-lg {
 /* ── Light Mode: Sidebar active nav label colors ────────────────────── */
 html:not(.dark) .text-indigo-400 { color: #4f46e5 !important; }
 
+iframe#nl-badge-frame {
+  display: none !important;
+}
+
 /* ── Print Styles for Payslips ──────────────────────────────────────── */
 @media print {
   body {

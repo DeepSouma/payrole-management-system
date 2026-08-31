@@ -1,0 +1,434 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  PAYROLL_ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+  ON_LEAVE
+}
+
+enum ComponentType {
+  EARNING
+  DEDUCTION
+}
+
+enum CalculationType {
+  FIXED
+  PERCENTAGE_OF_BASIC
+  PERCENTAGE_OF_GROSS
+}
+
+enum PayrollStatus {
+  DRAFT
+  CALCULATED
+  UNDER_REVIEW
+  APPROVED
+  FINALIZED
+  REJECTED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PROCESSING
+  INITIATED
+  PAID
+  FAILED
+}
+
+enum DisburseMethod {
+  HDFC_API
+  ICICI_API
+  H2H_SFTP
+  MANUAL_EXPORT
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         UserRole  @default(EMPLOYEE)
+  employeeId   String?   @unique
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs        AuditLog[]
+  processedRuns    PayrollRun[] @relation("ProcessedRuns")
+  approvedRuns     PayrollRun[] @relation("ApprovedRuns")
+}
+
+model Department {
+  id          String        @id @default(uuid())
+  code        String        @unique
+  name        String
+  description String?
+  status      String        @default("ACTIVE")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  designations Designation[]
+  employees    Employee[]
+}
+
+model Designation {
+  id           String     @id @default(uuid())
+  code         String     @unique
+  title        String
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  minSalary    Float?     @default(0)
+  maxSalary    Float?     @default(0)
+  status       String     @default("ACTIVE")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  employees Employee[]
+}
+
+model Employee {
+  id                String         @id @default(uuid())
+  employeeCode      String         @unique
+  firstName         String
+  lastName          String
+  email             String         @unique
+  phone             String?
+  dateOfBirth       DateTime?
+  gender            String?
+  address           String?
+  departmentId      String
+  department        Department     @relation(fields: [departmentId], references: [id])
+  designationId     String
+  designation       Designation    @relation(fields: [designationId], references: [id])
+  joiningDate       DateTime       @default(now())
+  employmentType    EmploymentType @default(FULL_TIME)
+  status            EmployeeStatus @default(ACTIVE)
+  reportingManagerId String?
+  reportingManager  Employee?      @relation("ManagerSubordinates", fields: [reportingManagerId], references: [id])
+  subordinates      Employee[]     @relation("ManagerSubordinates")
+  
+  // Banking & Tax info
+  panNumber         String?
+  bankName          String?
+  accountNumber     String?
+  ifscCode          String?
+
+  user              User?
+  salaryAssignments EmployeeSalaryAssignment[]
+  attendanceRecords AttendanceRecord[]
+  payrollRecords    PayrollRecord[]
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model SalaryComponent {
+  id              String          @id @default(uuid())
+  name            String
+  code            String          @unique
+  type            ComponentType   @default(EARNING)
+  calculationType CalculationType @default(FIXED)
+  defaultAmount   Float           @default(0)
+  percentageValue Float?          @default(0)
+  isTaxable       Boolean         @default(true)
+  isMandatory     Boolean         @default(false)
+  description     String?
+  status          String          @default("ACTIVE")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  structureItems  SalaryStructureItem[]
+}
+
+model SalaryStructure {
+  id          String                @id @default(uuid())
+  name        String
+  code        String                @unique
+  description String?
+  status      String                @default("ACTIVE")
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  items       SalaryStructureItem[]
+  assignments EmployeeSalaryAssignment[]
+}
+
+model SalaryStructureItem {
+  id                String          @id @default(uuid())
+  salaryStructureId String
+  salaryStructure   SalaryStructure @relation(fields: [salaryStructureId], references: [id], onDelete: Cascade)
+  componentId       String
+  component         SalaryComponent @relation(fields: [componentId], references: [id])
+  type              ComponentType
+  calculationType   CalculationType
+  value             Float           @default(0)
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([salaryStructureId, componentId])
+}
+
+model EmployeeSalaryAssignment {
+  id                String          @id @default(uuid())
+  employeeId        String
+  employee          Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  salaryStructureId String
+  salaryStructure   SalaryStructure @relation(fields: [salaryStructureId], references: [id])
+  basicSalary       Float
+  allowancesJson    String          @default("[]")
+  deductionsJson    String          @default("[]")
+  effectiveFrom     DateTime        @default(now())
+  effectiveTo       DateTime?
+  status            String          @default("ACTIVE")
+  remarks           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model AttendanceRecord {
+  id               String   @id @default(uuid())
+  employeeId       String
+  employee         Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  month            Int
+  year             Int
+  totalWorkingDays Int      @default(30)
+  presentDays      Int      @default(30)
+  absentDays       Int      @default(0)
+  paidLeaves       Int      @default(0)
+  unpaidLeaves     Int      @default(0)
+  overtimeHours    Float    @default(0)
+  holidays         Int      @default(0)
+  remarks          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([employeeId, month, year])
+}
+
+model PayrollRun {
+  id               String        @id @default(uuid())
+  periodMonth      Int
+  periodYear       Int
+  status           PayrollStatus @default(DRAFT)
+  totalEmployees   Int           @default(0)
+  totalGross       Float         @default(0)
+  totalDeductions  Float         @default(0)
+  totalNet         Float         @default(0)
+  processedById    String?
+  processedBy      User?         @relation("ProcessedRuns", fields: [processedById], references: [id])
+  approvedById     String?
+  approvedBy       User?         @relation("ApprovedRuns", fields: [approvedById], references: [id])
+  approvalComments String?
+  approvalDate     DateTime?
+  finalizedDate    DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  records          PayrollRecord[]
+  paymentBatches   PaymentBatch[]
+
+  @@unique([periodMonth, periodYear])
+}
+
+model PayrollRecord {
+  id                   String        @id @default(uuid())
+  payrollRunId         String
+  payrollRun           PayrollRun    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employeeId           String
+  employee             Employee      @relation(fields: [employeeId], references: [id])
+  
+  basicSalary          Float
+  earningsBreakdownJson String       @default("[]")
+  deductionsBreakdownJson String     @default("[]")
+  grossSalary          Float
+  totalDeductions      Float
+  netSalary            Float
+  
+  workingDays          Int           @default(30)
+  presentDays          Int           @default(30)
+  lopDays              Int           @default(0)
+  lopDeduction         Float         @default(0)
+  overtimeHours        Float         @default(0)
+  overtimeAmount       Float         @default(0)
+  taxDeduction         Float         @default(0)
+  pfDeduction          Float         @default(0)
+  
+  paymentStatus        PaymentStatus @default(UNPAID)
+  paymentDate          DateTime?
+  paymentReference     String? // UTR Number
+  paymentMethod        String? // HDFC_API, ICICI_API, H2H_SFTP
+  
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  payslip              Payslip?
+  transactions         PaymentTransaction[]
+
+  @@unique([payrollRunId, employeeId])
+}
+
+model Payslip {
+  id              String        @id @default(uuid())
+  payrollRecordId String        @unique
+  payrollRecord   PayrollRecord @relation(fields: [payrollRecordId], references: [id], onDelete: Cascade)
+  payslipNumber   String        @unique
+  generatedAt     DateTime      @default(now())
+  status          String        @default("GENERATED")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model AuditLog {
+  id               String   @id @default(uuid())
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id])
+  userName         String   @default("System")
+  action           String
+  module           String
+  recordId         String?
+  recordName       String?
+  previousValueJson String?
+  newValueJson     String?
+  ipAddress        String?  @default("127.0.0.1")
+  createdAt        DateTime @default(now())
+}
+
+model OrganizationSetting {
+  id                 String   @id @default(uuid())
+  companyName        String   @default("Apex Innovations Corp.")
+  companyEmail       String   @default("payroll@apex-innovations.io")
+  companyPhone       String   @default("+91 80 4123 9900")
+  companyAddress     String   @default("Plot 42, Silicon Valley Tech Zone, Bangalore, Karnataka 560100")
+  taxId              String   @default("GSTIN29AAAAA0000A1Z5")
+  currencySymbol     String   @default("₹")
+  currencyCode       String   @default("INR")
+  workingDaysPerMonth Int     @default(30)
+  payrollCutoffDay   Int      @default(25)
+  pfPercentage       Float    @default(12.0)
+  defaultTaxRate     Float    @default(10.0)
+  updatedAt          DateTime @updatedAt
+}
+
+// -------------------------------------------------------------
+// CORPORATE BANKING & HOST-TO-HOST (H2H) INTEGRATION MODELS
+// -------------------------------------------------------------
+
+model BankAccount {
+  id              String         @id @default(uuid())
+  bankName        String         // e.g. "HDFC Bank", "ICICI Bank"
+  bankCode        String         // "HDFC", "ICICI", "SBI", "AXIS"
+  accountName     String         // "Apex Innovations Corp - Payroll Pool"
+  accountNumber   String         @unique
+  ifscCode        String
+  branchName      String?
+  accountType     String         @default("CURRENT")
+  currency        String         @default("INR")
+  availableBalance Float         @default(10000000) // Demo corporate treasury balance
+  
+  // API & H2H credentials
+  corporateId     String?        // Bank corporate login identifier
+  clientId        String?
+  clientSecret    String?
+  sftpHost        String?        @default("sftp.bankgateway.com")
+  sftpUsername    String?
+  sftpPort        Int            @default(22)
+  pgpPublicKey    String?
+  status          String         @default("ACTIVE")
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  paymentBatches  PaymentBatch[]
+}
+
+model PaymentBatch {
+  id              String         @id @default(uuid())
+  batchNumber     String         @unique // e.g. "BATCH-202608-HDFC-001"
+  payrollRunId    String
+  payrollRun      PayrollRun     @relation(fields: [payrollRunId], references: [id])
+  bankAccountId   String
+  bankAccount     BankAccount    @relation(fields: [bankAccountId], references: [id])
+  method          DisburseMethod @default(HDFC_API)
+  
+  totalAmount     Float
+  totalRecords    Int
+  successCount    Int            @default(0)
+  failedCount     Int            @default(0)
+  
+  status          String         @default("PROCESSING") // PENDING, PROCESSING, TRANSMITTED, SETTLED, FAILED
+  bankRefNumber   String?
+  initiatedAt     DateTime       @default(now())
+  settledAt       DateTime?
+  failureReason   String?
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  transactions    PaymentTransaction[]
+  h2hFiles        H2HFile[]
+}
+
+model PaymentTransaction {
+  id              String         @id @default(uuid())
+  paymentBatchId  String
+  paymentBatch    PaymentBatch   @relation(fields: [paymentBatchId], references: [id], onDelete: Cascade)
+  payrollRecordId String
+  payrollRecord   PayrollRecord  @relation(fields: [payrollRecordId], references: [id], onDelete: Cascade)
+  
+  beneficiaryName String
+  accountNumber   String
+  ifscCode        String
+  bankName        String
+  amount          Float
+  paymentMode     String         @default("NEFT") // IFT, NEFT, RTGS, IMPS
+  
+  utrNumber       String?        // RBI Unique Transaction Reference
+  status          PaymentStatus  @default(INITIATED)
+  responseCode    String?        // "00" = SUCCESS, "RJ" = REJECTED
+  responseMessage String?
+  executedAt      DateTime?
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model H2HFile {
+  id              String         @id @default(uuid())
+  paymentBatchId  String?
+  paymentBatch    PaymentBatch?  @relation(fields: [paymentBatchId], references: [id])
+  fileName        String
+  fileFormat      String         // "HDFC_SUF_CSV", "ICICI_CIB_15COL", "NACH_306_TXT", "ISO_20022_XML"
+  direction       String         @default("INWARD_TO_BANK") // INWARD_TO_BANK, OUTWARD_FROM_BANK
+  fileSize        Int            @default(0)
+  checksum        String?
+  fileContent     String         @db.Text
+  status          String         @default("READY") // READY, TRANSMITTED, ACK_RECEIVED, RECONCILED
+  transmittedAt   DateTime?
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}

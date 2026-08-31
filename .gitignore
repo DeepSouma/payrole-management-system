@@ -1,0 +1,55 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Environment variables
+# (.env is explicitly preserved for instant out-of-the-box setup)
+.env*.local
+.env.production.local
+.env.staging.local
+
+# Prisma local SQLite database files (if any)
+/prisma/*.db
+/prisma/*.db-journal
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Diagnostic / Coverage
+coverage/
+*.lcov
+.nyc_output
+
+# Temporary files & caches
+*.tsbuildinfo
+.eslintcache
+.turbo
+
+# OS & Editor files
+.DS_Store
+*.pem
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# IDE & Editor directories
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Docker / local data
+postgres_data/
+docker-data/
+
